@@ -3,7 +3,9 @@ import DeckGL from '@deck.gl/react';
 import {ArcLayer, IconLayer} from '@deck.gl/layers';
 import { MapView, MapViewEventNames, MapViewUtils, FixedClipPlanesEvaluator, TopViewClipPlanesEvaluator, InterpolatedClipPlanesEvaluator, TiltViewClipPlanesEvaluator } from "@here/harp-mapview";
 import { GeoCoordinates } from "@here/harp-geoutils";
-import { APIFormat, AuthenticationMethod, AuthenticationTypeMapboxV4, OmvDataSource } from "@here/harp-omv-datasource";
+import {
+  APIFormat, AuthenticationMethod, VectorTileDataSource,
+ } from '@here/harp-vectortile-datasource';
 import loadCSV from './DataLoader';
 import {Model, Buffer, Framebuffer, instrumentGLContext, withParameters} from '@luma.gl/core';
 import {Deck} from '@deck.gl/core';
@@ -39,23 +41,10 @@ class Root extends React.Component{
   }
 
   onViewStateChange = ( { viewState } ) => {
-    const coords = new GeoCoordinates( viewState.latitude, viewState.longitude );
+     const coords = new GeoCoordinates( viewState.latitude, viewState.longitude );
     this.mapView.lookAt( coords, MapViewUtils.calculateDistanceFromZoomLevel( { focalLength: this.mapView.focalLength }, viewState.zoom + 1 ), viewState.pitch, viewState.bearing );
     this.mapView.zoomLevel = viewState.zoom + 1;
-    const viewport = this.deck.getViewports()[0];
-    const height = viewport.height;
-    let {near, far} = viewport.projectionProps;
-    
-    //far = far * height / 2 * viewport.zoom / viewport.metersPerPixel;
-
-    //Pass updated near/far values from deck to harp.   
-    this.mapView.updateCameras({
-      near: near,
-      far: far,
-      minimum: 0.1,
-      maximum: 100000,
-    });
-    this.setState( { viewState, near, far} );
+    this.setState( { viewState } );
   }
 
   componentDidMount = () => {
@@ -67,54 +56,30 @@ class Root extends React.Component{
   }  
 
   initMapView = (gl) => {
-    const mapCanvas = document.getElementById( 'mapCanvas' );    
-    const contextAttributes = {
-			alpha: false,
-			depth: true,
-			stencil: true,
-			antialias: false,
-			premultipliedAlpha: true,
-			preserveDrawingBuffer: false,
-			powerPreference: 'default',
-			failIfMajorPerformanceCaveat: false,
-			xrCompatible: true,
-    };
-    
-    this.webglContext = mapCanvas.getContext( 'webgl', contextAttributes );
-
-    const viewState = this.state.viewState;
+    const mapCanvas = document.getElementById( 'mapCanvas' );
+    const { viewState } = this.state;
     this.mapView = new MapView( {
       canvas: mapCanvas,
-      //context: gl,
-
-      //Throws error if intially far value set to low values like 3. If set to high values 1000+ initially and changed to low values later through `updateCameras` error doesn't occur.
-      clipPlanesEvaluator: new FixedClipPlanesEvaluator(0.1, 3),
-
-      //clipPlanesEvaluator: new InterpolatedClipPlanesEvaluator(0.1, 0.1, 35, 300),
-      theme: 'https://assets.vector.hereapi.com/styles/berlin/base/harp.gl/tilezen?apikey=YZXUgJpknqSz7OH05fKRJBz6k9lKFRe4m5KYtNMjPxc',
+      theme: 'https://unpkg.com/@here/harp-map-theme@latest/resources/berlin_tilezen_night_reduced.json',
       zoomLevel: viewState.zoom,
       decoderUrl: './harpgl-decoder.bundle.js',
-    } );
-
-    //For testing without deckgl
-    //MapControls.create(this.mapView);
-
-    this.mapView.addEventListener( MapViewEventNames.AfterRender, () => {
-      if ( this.deck ) { this.deck.redraw( 'basemap redrawn', true ); }
+      target: new GeoCoordinates( 37.773972, -122.431297 ),
+      enableNativeWebglAntialias: true,
     } );
 
     const coords = new GeoCoordinates( viewState.latitude, viewState.longitude );
-    this.mapView.setFovCalculation( { fov: 37, type: 'fixed' } );
+    this.mapView.setFovCalculation( { fov: 36, type: 'fixed' } );
     this.mapView.maxZoomLevel = 21;
     this.mapView.geoCenter = coords;
     this.mapView.lookAt( coords, MapViewUtils.calculateDistanceFromZoomLevel( { focalLength: this.mapView.focalLength }, viewState.zoom + 1 ), viewState.pitch, viewState.bearing );
-    this.mapView.zoomLevel = viewState.zoom + 1;    
+    this.mapView.zoomLevel = viewState.zoom + 1;
+
     this.mapView.resize( mapCanvas.clientWidth, mapCanvas.clientHeight );
 
-    const dataSource = new OmvDataSource( {
+    const dataSource = new VectorTileDataSource( {
       baseUrl: 'https://vector.hereapi.com/v2/vectortiles/base/mc',
       apiFormat: APIFormat.XYZOMV,
-      styleSetName: 'tilezen',
+      // styleSetName: 'tilezen',
       authenticationCode: 'YZXUgJpknqSz7OH05fKRJBz6k9lKFRe4m5KYtNMjPxc',
       authenticationMethod: {
                 method: AuthenticationMethod.QueryString,
@@ -122,6 +87,7 @@ class Root extends React.Component{
             },
     } );
     this.mapView.addDataSource( dataSource );
+    //this.mapView.loadPostEffects( '/resources/effects_outlines.json' );
     window.onresize = () => this.mapView.resize( window.innerWidth, window.innerHeight );
   }  
 
@@ -178,9 +144,9 @@ class Root extends React.Component{
           layers= {layers}
           controller = {true}
           onViewStateChange = {this.onViewStateChange}
-          onLoad={ this.onDeckGlLoad }
+          //onLoad={ this.onDeckGlLoad }
           //onWebGLInitialized = {this.onWebGLInitialized}
-          gl={ this.webglContext }
+          //gl={ this.webglContext }
           parameters = {{
             depthTest: true
           }}

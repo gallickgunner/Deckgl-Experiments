@@ -1,3 +1,3 @@
-import { OmvTileDecoderService } from "@here/harp-omv-datasource/index-worker";
+import { VectorTileDecoderService } from '@here/harp-vectortile-datasource/index-worker';
 
-OmvTileDecoderService.start();
+VectorTileDecoderService.start();
